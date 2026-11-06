@@ -22,34 +22,52 @@ def init_db(con = None):
     cur = con.cursor()
 
     try:
-        cur.execute("CREATE TABLE IF NOT EXISTS concepts(" \
-            "id INTEGER PRIMARY KEY," \
-            "title TEXT NOT NULL," \
-            "content TEXT," \
-            "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP," \
-            "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS concepts(
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT);
+        """)
 
-        cur.execute("CREATE TABLE IF NOT EXISTS predicates(" \
-        "id INTEGER PRIMARY KEY," \
-        "name TEXT NOT NULL UNIQUE," \
-        "bidirectional INTEGER NOT NULL DEFAULT 0 CHECK (bidirectional IN (0, 1)));")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS predicates(
+            id INTEGER PRIMARY KEY,
+            name TEXT UNIQUE,
+            bidirectional INTEGER NOT NULL DEFAULT 1
+                CHECK (bidirectional IN (0, 1)),
+            CHECK (name IS NOT NULL OR bidirectional = 1));
+        """)
 
-        cur.execute("CREATE TABLE IF NOT EXISTS relationships(" \
-        "id INTEGER PRIMARY KEY," \
-        "subject_id INTEGER NOT NULL REFERENCES concepts(id)," \
-        "predicate_id INTEGER NOT NULL REFERENCES predicates(id)," \
-        "object_id INTEGER NOT NULL REFERENCES concepts(id)," \
-        "remarks TEXT);")
+        # Enforce only one predicate has a NULL name
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_predicates_single_generic
+            ON predicates((1))
+            WHERE name IS NULL;
+        """)
 
-        cur.execute("CREATE TABLE IF NOT EXISTS projects(" \
-        "id INTEGER PRIMARY KEY," \
-        "title TEXT NOT NULL," \
-        "description TEXT);")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS relationships(
+            id INTEGER PRIMARY KEY,
+            subject_id INTEGER NOT NULL REFERENCES concepts(id),
+            predicate_id INTEGER NOT NULL REFERENCES predicates(id),
+            object_id INTEGER NOT NULL REFERENCES concepts(id),
+            remarks TEXT);
+        """)
 
-        cur.execute("CREATE TABLE IF NOT EXISTS project_concepts(" \
-        "concept_id INTEGER NOT NULL REFERENCES concepts(id)," \
-        "project_id INTEGER NOT NULL REFERENCES projects(id)," \
-        "PRIMARY KEY (concept_id, project_id));")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projects(
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT);
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS project_concepts(
+            id INTEGER PRIMARY KEY,
+            concept_id INTEGER NOT NULL REFERENCES concepts(id),
+            project_id INTEGER NOT NULL REFERENCES projects(id),
+            UNIQUE (concept_id, project_id));
+        """)
 
         con.commit()
     finally:

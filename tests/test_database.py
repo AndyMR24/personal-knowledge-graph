@@ -1,7 +1,18 @@
 from app.database import get_connection, init_db
-from datetime import datetime
 import pytest
 import sqlite3
+
+
+@pytest.fixture
+def initialized_db():
+    con = get_connection(":memory:")
+    init_db(con)
+
+    try:
+        yield con
+    finally:
+        con.close()
+
 
 def test_parent_directory_creation(tmp_path):
     tmp_db_path = tmp_path / "test_data" / "test.db"
@@ -40,7 +51,6 @@ def test_concept_creation():
 
         assert res[0] == 1
         assert res[1] == 'Python'
-        datetime.strptime(res[3], "%Y-%m-%d %H:%M:%S")
     finally:
         con.close()
 
@@ -59,6 +69,52 @@ def test_duplicated_predicate_names():
                 "(?);", ('isA', 'isA',))
     finally:
         con.close()
+
+
+def test_generic_predicate_defaults_to_bidirectional(initialized_db):
+    cur = initialized_db.cursor()
+
+    cur.execute("INSERT INTO predicates DEFAULT VALUES;")
+
+    assert cur.execute(
+        "SELECT name, bidirectional FROM predicates;"
+    ).fetchone() == (None, 1)
+
+
+def test_second_generic_predicate_is_rejected(initialized_db):
+    cur = initialized_db.cursor()
+    cur.execute("INSERT INTO predicates DEFAULT VALUES;")
+
+    with pytest.raises(sqlite3.IntegrityError):
+        cur.execute(
+            "INSERT INTO predicates (name, bidirectional) VALUES (NULL, 1);"
+        )
+
+
+def test_generic_predicate_must_be_bidirectional(initialized_db):
+    cur = initialized_db.cursor()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        cur.execute(
+            "INSERT INTO predicates (name, bidirectional) VALUES (NULL, 0);"
+        )
+
+
+@pytest.mark.parametrize("bidirectional", [0, 1])
+def test_named_predicate_accepts_boolean_directionality(
+    initialized_db, bidirectional
+):
+    cur = initialized_db.cursor()
+
+    cur.execute(
+        "INSERT INTO predicates (name, bidirectional) VALUES (?, ?);",
+        ("related_to", bidirectional),
+    )
+
+    assert cur.execute(
+        "SELECT bidirectional FROM predicates WHERE name = ?;",
+        ("related_to",),
+    ).fetchone() == (bidirectional,)
 
 
 
@@ -91,29 +147,37 @@ def test_relationship_creation():
 
 
 
-def test_incorrect_relationship_creation():
-    con = get_connection(":memory:")
-    cur = con.cursor()
+@pytest.mark.parametrize(
+    "invalid_field",
+    ["subject_id", "predicate_id", "object_id"],
+)
+def test_relationship_rejects_invalid_foreign_keys(
+    initialized_db, invalid_field
+):
+    cur = initialized_db.cursor()
+    cur.execute(
+        "INSERT INTO concepts (id, title) VALUES (1, ?), (2, ?);",
+        ("Python", "Unit Tests"),
+    )
+    cur.execute(
+        "INSERT INTO predicates (id, name) VALUES (1, ?);",
+        ("uses",),
+    )
 
-    try:
-        init_db(con)
+    relationship = {
+        "subject_id": 1,
+        "predicate_id": 1,
+        "object_id": 2,
+    }
+    relationship[invalid_field] = 999
 
-        assert cur.execute("PRAGMA foreign_keys;").fetchone() == (1,)
-
-        cur.execute("INSERT INTO concepts (title)" \
-            "VALUES (?), (?);", ('Python', 'Unit Tests',))
-
-        cur.execute("INSERT INTO predicates (name)" \
-        "VALUES (?);", ('uses',))
-
-        concept_ids = cur.execute("SELECT id FROM concepts ORDER BY id;").fetchall()
-
-        predicate_id = cur.execute("SELECT id FROM predicates;").fetchone()
-
-        with pytest.raises(sqlite3.IntegrityError):
-            cur.execute("INSERT INTO relationships (subject_id, predicate_id, object_id) VALUES (?, ?, ?);", (999, predicate_id[0], concept_ids[1][0]))
-    finally:
-        con.close()
+    with pytest.raises(sqlite3.IntegrityError):
+        cur.execute(
+            "INSERT INTO relationships "
+            "(subject_id, predicate_id, object_id) "
+            "VALUES (:subject_id, :predicate_id, :object_id);",
+            relationship,
+        )
 
 
 
@@ -154,11 +218,13 @@ def test_project_concept_creation():
 
         project_id = cur.execute("SELECT id FROM projects;").fetchone()[0]
 
-        cur.execute("INSERT INTO project_concepts (concept_id, project_id) VALUES (?, ?);", (concept_id, project_id))
+        cur.execute("INSERT INTO project_concepts VALUES (?, ?, ?);", (1, concept_id, project_id))
+
+        project_concept_id = cur.execute("SELECT id FROM project_concepts;").fetchone()[0]
 
         res = cur.execute("SELECT * FROM project_concepts;").fetchone()
 
-        assert res == (concept_id, project_id)
+        assert res == (project_concept_id, concept_id, project_id)
     finally:
         con.close()
 

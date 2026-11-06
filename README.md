@@ -12,6 +12,7 @@ Currently implemented:
 - FastAPI application with a health-check endpoint.
 - SQLite database initialization.
 - Database schema for concepts, predicates, relationships, projects, and project–concept associations.
+- Domain models and validation rules for concepts, predicates, relationships, projects, and project–concept associations.
 - Automated tests for database behavior and integrity constraints.
 
 Features such as creating and editing concepts through a web interface and visualizing the knowledge graph are planned for future milestones.
@@ -32,8 +33,9 @@ Features such as creating and editing concepts through a web interface and visua
 personal-knowledge-graph/
 ├── app/
 │   ├── __init__.py
+│   ├── database.py
 │   ├── main.py
-│   └── database.py
+│   └── models.py
 ├── tests/
 ├── data/
 ├── .gitignore
@@ -44,6 +46,7 @@ personal-knowledge-graph/
 
 - `app/main.py` contains the FastAPI application.
 - `app/database.py` handles database connections and schema initialization.
+- `app/models.py` contains the domain dataclasses and validation rules.
 - `tests/` contains automated tests.
 - `data/` is reserved for local application data, including the SQLite database.
 
@@ -122,13 +125,13 @@ The current database schema consists of five tables:
 
 | Table | Purpose |
 |---|---|
-| `concepts` | Stores concepts, their content, and timestamps. |
-| `predicates` | Stores reusable relationship types and their directionality. |
+| `concepts` | Stores concepts and their optional content. |
+| `predicates` | Stores reusable relationship types, their directionality, and the optional generic predicate. |
 | `relationships` | Connects concepts through predicates. |
 | `projects` | Stores projects with titles and optional descriptions. |
-| `project_concepts` | Associates concepts with projects. |
+| `project_concepts` | Associates concepts with projects using a unique concept–project pair. |
 
-A concept can belong to multiple projects or exist independently of any project. Relationships reference concepts and predicates through foreign keys, and project–concept associations use a composite primary key to prevent duplicate associations.
+A concept can belong to multiple projects or exist independently of any project. Relationships reference concepts and predicates through foreign keys. Project–concept associations use an `id` primary key and a `UNIQUE(concept_id, project_id)` constraint to prevent duplicate pairs. A predicate with a `NULL` name is the single generic predicate and must be bidirectional.
 
 ## Development Philosophy
 
