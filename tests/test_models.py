@@ -73,12 +73,6 @@ OPTIONAL_STRING_FIELDS = [
         id="concept-content",
     ),
     pytest.param(
-        Relationship,
-        "remarks",
-        {"subject_id": 1, "predicate_id": 2, "object_id": 3},
-        id="relationship-remarks",
-    ),
-    pytest.param(
         Project,
         "description",
         {"title": "Thesis"},
@@ -308,7 +302,6 @@ def test_required_constructor_arguments_are_required(factory):
                 "predicate_id": 2,
                 "object_id": 3,
                 "id": None,
-                "remarks": None,
             },
             id="relationship",
         ),
@@ -343,13 +336,12 @@ def test_models_apply_optional_defaults(model, expected):
             id="predicate",
         ),
         pytest.param(
-            Relationship(1, 2, 3, 7, "Notes"),
+            Relationship(1, 2, 3, 7),
             {
                 "subject_id": 1,
                 "predicate_id": 2,
                 "object_id": 3,
                 "id": 7,
-                "remarks": "Notes",
             },
             id="relationship",
         ),

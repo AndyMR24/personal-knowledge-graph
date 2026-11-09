@@ -4,7 +4,7 @@ import sqlite3
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATABASE_PATH = ROOT_DIR / "data" / "my_database.db"
 
-def get_connection(db_path: Path | str = DATABASE_PATH):
+def get_connection(db_path: Path | str = DATABASE_PATH) -> sqlite3.Connection:
     if db_path != ":memory:":
         Path(db_path).parent.mkdir(parents = True, exist_ok = True)
 
@@ -13,7 +13,7 @@ def get_connection(db_path: Path | str = DATABASE_PATH):
 
     return con
 
-def init_db(con = None):
+def init_db(con = None) -> None:
     own_connection = con is None
     
     if own_connection:
@@ -50,8 +50,7 @@ def init_db(con = None):
             id INTEGER PRIMARY KEY,
             subject_id INTEGER NOT NULL REFERENCES concepts(id),
             predicate_id INTEGER NOT NULL REFERENCES predicates(id),
-            object_id INTEGER NOT NULL REFERENCES concepts(id),
-            remarks TEXT);
+            object_id INTEGER NOT NULL REFERENCES concepts(id));
         """)
 
         cur.execute("""

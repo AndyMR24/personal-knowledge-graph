@@ -71,14 +71,12 @@ class Relationship:
     predicate_id: int
     object_id: int
     id: int | None = None
-    remarks: str | None = None
 
     def __post_init__(self):
         _validate_id(self.id)
         _validate_required_id(self.subject_id)
         _validate_required_id(self.predicate_id)
         _validate_required_id(self.object_id)
-        _validate_optional_string(self.remarks)
 
 
 
