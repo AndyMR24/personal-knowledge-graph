@@ -6,16 +6,22 @@ The goal is to create a structured knowledge base where concepts can be document
 
 ## Current Status
 
-The project is in early development.
+The project is under active development.
 
 Currently implemented:
-- FastAPI application with a health-check endpoint.
-- SQLite database initialization.
-- Database schema for concepts, predicates, relationships, projects, and project–concept associations.
-- Domain models and validation rules for concepts, predicates, relationships, projects, and project–concept associations.
-- Automated tests for database behavior and integrity constraints.
 
-Features such as creating and editing concepts through a web interface and visualizing the knowledge graph are planned for future milestones.
+- FastAPI application with a health-check endpoint.
+- SQLite database connections, schema initialization, and foreign-key enforcement.
+- Database schema for concepts, predicates, relationships, projects, and project–concept associations.
+- Validated domain models implemented as Python dataclasses.
+- Repository layer with CRUD operations for all five entities.
+- Service layer for application-level operations, including relationship validation, concept deletion with dependent-record cleanup, and project–concept associations.
+- Concept search by title using substring matching.
+- Full graph retrieval, returning all concepts and relationships.
+- Neighborhood retrieval, returning a selected concept, its directly connected neighbors, and the relevant incoming and outgoing relationships.
+- Automated tests covering domain validation, database integrity, repository operations, service logic, and graph queries.
+
+The current focus is the backend and its data-access and application logic. A web interface for managing knowledge and an interactive graph visualization are planned for future development.
 
 ## Technology Stack
 
@@ -35,7 +41,9 @@ personal-knowledge-graph/
 │   ├── __init__.py
 │   ├── database.py
 │   ├── main.py
-│   └── models.py
+│   ├── models.py
+│   ├── repositories.py
+│   └── services.py
 ├── tests/
 ├── data/
 ├── .gitignore
@@ -46,7 +54,9 @@ personal-knowledge-graph/
 
 - `app/main.py` contains the FastAPI application.
 - `app/database.py` handles database connections and schema initialization.
-- `app/models.py` contains the domain dataclasses and validation rules.
+- `app/models.py` defines the domain dataclasses and their validation rules.
+- `app/repositories.py` implements database operations for creating, retrieving, updating, and deleting entities, as well as supporting queries.
+- `app/services.py` implements application-level operations and business rules by coordinating repository functions.
 - `tests/` contains automated tests.
 - `data/` is reserved for local application data, including the SQLite database.
 
@@ -102,8 +112,8 @@ python -m uvicorn app.main:app --reload
 
 The application will be available locally at:
 
-- Application: http://127.0.0.1:8000
-- Interactive API documentation: http://127.0.0.1:8000/docs
+- Application: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- Interactive API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 The database schema is initialized when the application starts.
 
@@ -121,7 +131,7 @@ Database tests use in-memory SQLite databases where appropriate and isolated tem
 
 ## Data Model
 
-The current database schema consists of five tables:
+The database schema consists of five tables:
 
 | Table | Purpose |
 |---|---|
@@ -131,7 +141,21 @@ The current database schema consists of five tables:
 | `projects` | Stores projects with titles and optional descriptions. |
 | `project_concepts` | Associates concepts with projects using a unique concept–project pair. |
 
-A concept can belong to multiple projects or exist independently of any project. Relationships reference concepts and predicates through foreign keys. Project–concept associations use an `id` primary key and a `UNIQUE(concept_id, project_id)` constraint to prevent duplicate pairs. A predicate with a `NULL` name is the single generic predicate and must be bidirectional.
+A concept can belong to multiple projects or exist independently of any project. Relationships reference concepts and predicates through foreign keys.
+
+The `project_concepts` table uses an `id` primary key and a `UNIQUE(concept_id, project_id)` constraint to prevent duplicate associations. A predicate with a `NULL` name represents the single generic predicate and must be bidirectional.
+
+## Current Backend Capabilities
+
+- **Concept management:** Create, retrieve, update, and delete concepts.
+- **Predicate management:** Manage reusable relationship types and their directionality.
+- **Relationship management:** Create, retrieve, update, and delete relationships while enforcing application-level validation rules.
+- **Project management:** Create, retrieve, update, and delete projects.
+- **Project–concept associations:** Associate concepts with projects and remove those associations without deleting the concepts themselves.
+- **Concept search:** Find concepts by title using substring matching.
+- **Graph retrieval:** Retrieve the full graph or explore the immediate neighborhood of a specific concept.
+
+These capabilities are currently implemented in the backend; a user-facing interface for them remains planned.
 
 ## Development Philosophy
 
@@ -139,8 +163,8 @@ The project prioritizes:
 
 - Simplicity and maintainability.
 - Reliable data storage and integrity.
-- Clear separation between concepts, relationships, and project organization.
-- Automated testing of important database behavior.
+- Clear separation between domain models, database operations, and application logic.
+- Automated testing of important behavior.
 - Incremental development and learning.
 
 ## License
