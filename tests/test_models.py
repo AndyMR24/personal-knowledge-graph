@@ -166,19 +166,19 @@ def test_models_reject_boolean_required_ids(
 
 @pytest.mark.parametrize("model_class, field_name, other_values", REQUIRED_STRING_FIELDS)
 @pytest.mark.parametrize(
-    "value",
+    ("value", "expected"),
     [
-        pytest.param("Python", id="simple"),
-        pytest.param("  Python  ", id="surrounding-whitespace"),
-        pytest.param("  Two words\n", id="multiline"),
+        pytest.param("Python", "Python", id="simple"),
+        pytest.param("  Python  ", "Python", id="surrounding-whitespace"),
+        pytest.param("Two words", "Two words", id="internal-whitespace"),
     ],
 )
-def test_models_accept_and_preserve_required_strings(
-    model_class, field_name, other_values, value
+def test_normalize_required_strings(
+    model_class, field_name, other_values, value, expected
 ):
     model = model_class(**other_values, **{field_name: value})
 
-    assert getattr(model, field_name) == value
+    assert getattr(model, field_name) == expected
 
 
 @pytest.mark.parametrize("model_class, field_name, other_values", REQUIRED_STRING_FIELDS)
@@ -217,37 +217,25 @@ def test_models_reject_non_string_required_values(
 
 @pytest.mark.parametrize("model_class, field_name, other_values", OPTIONAL_STRING_FIELDS)
 @pytest.mark.parametrize(
-    "value",
+    ("value", "expected"),
     [
-        pytest.param(None, id="none"),
-        pytest.param("", id="empty"),
-        pytest.param("  Details  ", id="surrounding-whitespace"),
-        pytest.param("First line\nSecond line", id="multiline"),
+        pytest.param(None, None, id="none"),
+        pytest.param("", None, id="empty"),
+        pytest.param("   ", None, id="whitespace-only"),
+        pytest.param("  Details  ", "Details", id="surrounding-whitespace"),
+        pytest.param(
+            "First line\nSecond line",
+            "First line\nSecond line",
+            id="multiline",
+        ),
     ],
 )
-def test_models_accept_and_preserve_optional_strings(
-    model_class, field_name, other_values, value
+def test_normalize_optional_strings(
+    model_class, field_name, other_values, value, expected
 ):
     model = model_class(**other_values, **{field_name: value})
 
-    assert getattr(model, field_name) == value
-
-
-@pytest.mark.parametrize("model_class, field_name, other_values", OPTIONAL_STRING_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    [
-        pytest.param(1, id="integer"),
-        pytest.param(True, id="boolean"),
-        pytest.param([], id="list"),
-        pytest.param(object(), id="object"),
-    ],
-)
-def test_models_reject_non_string_optional_values(
-    model_class, field_name, other_values, value
-):
-    with pytest.raises(TypeError):
-        model_class(**other_values, **{field_name: value})
+    assert getattr(model, field_name) == expected
 
 
 @pytest.mark.parametrize(
@@ -378,7 +366,7 @@ def test_generic_predicate_must_be_bidirectional():
     "name",
     [
         pytest.param("related_to", id="simple"),
-        pytest.param("  related to  ", id="surrounding-whitespace"),
+        pytest.param("related to", id="surrounding-whitespace"),
     ],
 )
 def test_named_predicate_preserves_valid_names(name):

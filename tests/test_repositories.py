@@ -3,15 +3,18 @@ from app.models import Concept, Predicate, Relationship, Project, ProjectConcept
 from app.repositories import (
     create_concept,
     get_concept_by_id,
-    get_concept_by_title,
     update_concept,
     delete_concept,
     get_all_concepts,
+    search_concepts_by_title,
+    delete_relationships_for_concept, delete_project_concepts_for_concept,
     create_predicate,
     get_predicate_by_id,
+    get_predicate_by_name,
     update_predicate,
     delete_predicate,
     get_all_predicates,
+    delete_relationships_for_predicate,
     create_relationship,
     get_relationship_by_id,
     update_relationship,
@@ -22,12 +25,12 @@ from app.repositories import (
     update_project,
     delete_project,
     get_all_projects,
+    search_projects_by_title,
     create_project_concept,
     get_project_concept_by_id,
     update_project_concept,
     delete_project_concept,
-    get_all_project_concepts,
-    delete_relationships_for_concept, delete_project_concepts_for_concept)
+    get_all_project_concepts)
 import pytest
 import sqlite3
 
@@ -44,73 +47,61 @@ def con():
         # Close the connection after the test finishes
         con.close()
 
-
-
 @pytest.fixture
 def concept1(con):
     return create_concept(con, Concept("Python", content = "Something Pythonic"))
-
-
 
 @pytest.fixture
 def concept2(con):
     return create_concept(con, Concept("Programming Language", content = "Easy"))
 
-
-
 @pytest.fixture
 def concept3(con):
     return create_concept(con, Concept("Java", content = "Something Java-like"))
-
-
 
 @pytest.fixture
 def predicate1(con):
     return create_predicate(con, Predicate(name = "isA", bidirectional = False))
 
-
+@pytest.fixture
+def predicate2(con):
+    return create_predicate(con, Predicate())
 
 @pytest.fixture
 def relationship1(con, concept1, concept2, predicate1):    
     return create_relationship(con, Relationship(concept1.id, predicate1.id, concept2.id))
 
-
-
 @pytest.fixture
 def relationship2(con, concept3, concept2, predicate1):
     return create_relationship(con, Relationship(concept3.id, predicate1.id, concept2.id))
 
-
+@pytest.fixture
+def relationship3(con, concept1, concept2, predicate2):
+    return create_relationship(con, Relationship(concept1.id, predicate2.id, concept2.id))
 
 @pytest.fixture
 def self_relationship(con, concept1, predicate1):
     return create_relationship(con, Relationship(concept1.id, predicate1.id, concept1.id))
 
-
-
 @pytest.fixture
 def project1(con):
     return create_project(con, Project("Thesis", description = "My Thesis"))
-
-
 
 @pytest.fixture
 def project2(con):
     return create_project(con, Project("Personal Knowledge Graph", description = "My First Full Python Project"))
 
-
+@pytest.fixture
+def project3(con):
+    return create_project(con, Project("Company Knowledge Graph", description = "A company's knowledge graph"))
 
 @pytest.fixture
 def project_concept1(con, concept1, project1):
     return create_project_concept(con, ProjectConcept(concept1.id, project1.id))
 
-
-
 @pytest.fixture
 def project_concept2(con, concept1, project2):
     return create_project_concept(con, ProjectConcept(concept1.id, project2.id))
-
-
 
 @pytest.fixture
 def project_concept3(con, concept2, project1):
@@ -135,25 +126,6 @@ def test_get_concept_by_id(con, concept1):
     assert res.id == concept1.id
     assert res.title == concept1.title
     assert res.content == concept1.content
-
-
-
-@pytest.mark.parametrize("query, expected_titles", [
-    ("Python", ["Python", "Python Testing", "Learning Python"]),
-    ("python", ["Python", "Python Testing", "Learning Python"]),
-    ("thon", ["Python", "Python Testing", "Learning Python"]),
-    ("Java", []),
-    ("", ["Python", "Python Testing", "Learning Python"])
-])
-
-def test_get_concept_by_title(con, query, expected_titles):
-    create_concept(con, Concept("Python"))
-    create_concept(con, Concept("Python Testing"))
-    create_concept(con, Concept("Learning Python"))
-
-    concepts = get_concept_by_title(con, query)
-
-    assert sorted([concept.title for concept in concepts]) == sorted(expected_titles)
 
 
 
@@ -209,8 +181,91 @@ def test_get_all_concepts(con, concept1):
 
 
 
+@pytest.mark.parametrize("query, expected_titles", [
+    ("Python", ["Python", "Python Testing", "Learning Python"]),
+    ("python", ["Python", "Python Testing", "Learning Python"]),
+    ("thon", ["Python", "Python Testing", "Learning Python"]),
+    ("Java", []),
+    ("", ["Python", "Python Testing", "Learning Python"])
+])
+
+def test_search_concepts_by_title(con, query, expected_titles):
+    create_concept(con, Concept("Python"))
+    create_concept(con, Concept("Python Testing"))
+    create_concept(con, Concept("Learning Python"))
+
+    concepts = search_concepts_by_title(con, query)
+
+    assert sorted([concept.title for concept in concepts]) == sorted(expected_titles)
+
+
+
 def test_get_all_concepts_with_empty_database(con):
     assert get_all_concepts(con) == []
+
+
+
+def test_delete_relationships_for_concept_as_subject(con, relationship1):
+    assert delete_relationships_for_concept(con, relationship1.subject_id) == 1
+    assert get_relationship_by_id(con, relationship1.id) is None
+
+
+
+def test_delete_relationships_for_concept_as_object(con, relationship1):
+    assert delete_relationships_for_concept(con, relationship1.object_id) == 1
+    assert get_relationship_by_id(con, relationship1.id) is None
+
+
+
+def test_delete_relationships_without_mathing_concept(con):
+    assert delete_relationships_for_concept(con, 999) == 0
+
+
+
+def test_delete_multiple_relationships_for_concept(con, relationship1, relationship2):
+    assert delete_relationships_for_concept(con, relationship1.object_id) == 2
+
+
+
+def test_preserve_unrelated_relationships_for_concept(con, relationship1, relationship2):
+    assert delete_relationships_for_concept(con, relationship1.subject_id) == 1
+    assert get_relationship_by_id(con, relationship2.id) is not None
+
+
+
+def test_delete_relationships_for_concept_without_associated_relationships(con, concept1):
+    assert delete_relationships_for_concept(con, concept1.id) == 0
+
+
+
+def test_delete_self_relationship_for_concept(con, self_relationship):
+    assert delete_relationships_for_concept(con, self_relationship.subject_id) == 1
+    assert get_relationship_by_id(con, self_relationship.id) is None
+
+
+
+def test_delete_one_project_concept_association(con, concept1, project_concept1):
+    assert delete_project_concepts_for_concept(con, concept1.id) == 1
+    assert get_project_concept_by_id(con, project_concept1.id) is None
+
+
+
+def test_delete_multiple_project_concept_associations(con, concept1, project_concept1, project_concept2):
+    assert delete_project_concepts_for_concept(con, concept1.id) == 2
+    assert get_project_concept_by_id(con, project_concept1.id) is None
+    assert get_project_concept_by_id(con, project_concept2.id) is None
+
+
+
+def test_delete_projects_for_concept_without_associated_projects(con, concept1):
+    assert delete_project_concepts_for_concept(con, concept1.id) == 0
+
+
+
+def test_preserve_unrelated_project_concepts(con, concept2, project_concept1, project_concept3):
+    assert delete_project_concepts_for_concept(con, concept2.id) == 1
+    assert get_project_concept_by_id(con, project_concept3.id) is None
+    assert get_project_concept_by_id(con, project_concept1.id) == project_concept1
 
 
 
@@ -236,6 +291,26 @@ def test_get_predicate_by_id(con, predicate1):
 
 def test_get_invalid_predicate_by_id(con):
     assert get_predicate_by_id(con, 1) is None
+
+
+
+def test_get_predicate_by_name(con, predicate1):
+    table_predicate1 =  get_predicate_by_name(con, predicate1.name)
+
+    assert table_predicate1 is not None
+    assert table_predicate1.name == predicate1.name
+    assert table_predicate1.bidirectional == predicate1.bidirectional
+
+    assert get_predicate_by_name(con) is None
+
+    predicate2 = create_predicate(con, Predicate())
+    table_predicate2 =  get_predicate_by_name(con)
+    
+    assert table_predicate2 is not None
+    assert table_predicate2.name == predicate2.name
+    assert table_predicate2.bidirectional == predicate2.bidirectional
+
+    assert get_predicate_by_name(con, "Java") is None
 
 
 
@@ -287,6 +362,39 @@ def test_get_all_predicates(con, predicate1):
 
 def test_get_all_predicates_with_empty_database(con):
     assert get_all_predicates(con) == []
+
+
+
+def test_delete_relationships_for_predicate(con, relationship1):
+    assert delete_relationships_for_predicate(con, relationship1.predicate_id) == 1
+    assert get_relationship_by_id(con, relationship1.id) is None
+
+
+
+def test_delete_relationships_without_mathing_predicate(con):
+    assert delete_relationships_for_predicate(con, 999) == 0
+
+
+
+def test_delete_multiple_relationships_for_predicate(con, relationship1, relationship2):
+    assert delete_relationships_for_predicate(con, relationship1.predicate_id) == 2
+
+
+
+def test_preserve_unrelated_relationships_for_predicate(con, relationship1, relationship3):
+    assert delete_relationships_for_predicate(con, relationship1.predicate_id) == 1
+    assert get_relationship_by_id(con, relationship3.id) is not None
+
+
+
+def test_delete_relationships_for_predicate_without_associated_relationships(con, predicate1):
+    assert delete_relationships_for_predicate(con, predicate1.id) == 0
+
+
+
+def test_delete_self_relationship_for_predicate(con, self_relationship):
+    assert delete_relationships_for_predicate(con, self_relationship.predicate_id) == 1
+    assert get_relationship_by_id(con, self_relationship.id) is None
 
 
 
@@ -425,7 +533,7 @@ def test_get_project_by_id(con, project1):
 
 
 
-def test_get_invalid_project_by_id(con):
+def test_get_inexistent_project_by_id(con):
     assert get_project_by_id(con, 1) is None
 
 
@@ -482,6 +590,25 @@ def test_get_all_projects(con, project1):
 
 def test_get_all_projects_with_empty_database(con):
     assert get_all_projects(con) == []
+
+
+
+@pytest.mark.parametrize("query, expected_titles", [
+    ("Python", ["Python", "Python Testing", "Learning Python"]),
+    ("python", ["Python", "Python Testing", "Learning Python"]),
+    ("thon", ["Python", "Python Testing", "Learning Python"]),
+    ("Java", []),
+    ("", ["Python", "Python Testing", "Learning Python"])
+])
+
+def test_search_projects_by_title(con, query, expected_titles):
+    create_project(con, Project("Python"))
+    create_project(con, Project("Python Testing"))
+    create_project(con, Project("Learning Python"))
+
+    projects = search_projects_by_title(con, query)
+
+    assert sorted([project.title for project in projects]) == sorted(expected_titles)
 
 
 
@@ -689,67 +816,3 @@ def test_delete_concept_with_project_concepts(con):
 
     with pytest.raises(sqlite3.IntegrityError):
         delete_concept(con, table_concept.id)
-
-
-
-def test_delete_relationships_for_concept_as_subject(con, relationship1):
-    assert delete_relationships_for_concept(con, relationship1.subject_id) == 1
-    assert get_relationship_by_id(con, relationship1.id) is None
-
-
-
-def test_delete_relationships_for_concept_as_object(con, relationship1):
-    assert delete_relationships_for_concept(con, relationship1.object_id) == 1
-    assert get_relationship_by_id(con, relationship1.id) is None
-
-
-
-def test_delete_relationships_without_mathing_concept(con):
-    assert delete_relationships_for_concept(con, 999) == 0
-
-
-
-def test_delete_multiple_relationships(con, relationship1, relationship2):
-    assert delete_relationships_for_concept(con, relationship1.object_id) == 2
-
-
-
-def test_preserve_unrelated_relationships(con, relationship1, relationship2):
-    assert delete_relationships_for_concept(con, relationship1.subject_id) == 1
-    assert get_relationship_by_id(con, relationship2.id) is not None
-
-
-
-def test_delete_relationships_for_concept_without_associated_relationships(con, concept1):
-    assert delete_relationships_for_concept(con, concept1.id) == 0
-
-
-
-def test_delete_self_relationship(con, self_relationship):
-    assert delete_relationships_for_concept(con, self_relationship.subject_id) == 1
-    assert get_relationship_by_id(con, self_relationship.id) is None
-
-
-
-def test_delete_one_project_concept_association(con, concept1, project_concept1):
-    assert delete_project_concepts_for_concept(con, concept1.id) == 1
-    assert get_project_concept_by_id(con, project_concept1.id) is None
-
-
-
-def test_delete_multiple_project_concept_associations(con, concept1, project_concept1, project_concept2):
-    assert delete_project_concepts_for_concept(con, concept1.id) == 2
-    assert get_project_concept_by_id(con, project_concept1.id) is None
-    assert get_project_concept_by_id(con, project_concept2.id) is None
-
-
-
-def test_delete_projects_for_concept_without_associated_projects(con, concept1):
-    assert delete_project_concepts_for_concept(con, concept1.id) == 0
-
-
-
-def test_preserve_unrelated_project_concepts(con, concept2, project_concept1, project_concept3):
-    assert delete_project_concepts_for_concept(con, concept2.id) == 1
-    assert get_project_concept_by_id(con, project_concept3.id) is None
-    assert get_project_concept_by_id(con, project_concept1.id) == project_concept1

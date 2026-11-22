@@ -35,26 +35,6 @@ def get_concept_by_id(con: sqlite3.Connection, concept_id: int) -> Concept | Non
 
 
 
-def get_concept_by_title(con: sqlite3.Connection, title: str) -> list[Concept]:
-    cur = con.cursor()
-
-    try:
-        concepts = cur.execute("""
-            SELECT * FROM concepts
-            WHERE title LIKE (?);
-        """, (f'%{title}%',)).fetchall()
-    finally:
-        cur.close()
-
-    res = []
-
-    for row in concepts:
-        res.append(Concept(row[1], row[0], row[2]))
-
-    return res
-
-
-
 def update_concept(con: sqlite3.Connection, concept: Concept) -> bool:
     if concept.id is None:
         return False
@@ -113,6 +93,60 @@ def get_all_concepts(con: sqlite3.Connection) -> list[Concept]:
 
 
 
+def search_concepts_by_title(con: sqlite3.Connection, title: str) -> list[Concept]:
+    cur = con.cursor()
+
+    try:
+        concepts = cur.execute("""
+            SELECT * FROM concepts
+            WHERE title LIKE ?;
+        """, (f'%{title}%',)).fetchall()
+    finally:
+        cur.close()
+
+    res = []
+
+    for row in concepts:
+        res.append(Concept(row[1], row[0], row[2]))
+
+    return res
+
+
+
+def delete_relationships_for_concept(con: sqlite3.Connection, concept_id: int) -> int: 
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM relationships
+            WHERE subject_id = ? OR object_id = ?;
+        """, (concept_id, concept_id))
+
+        changed_rows = cur.rowcount
+    finally:
+        cur.close()
+
+    return changed_rows
+
+
+
+def delete_project_concepts_for_concept(con: sqlite3.Connection, concept_id: int) -> int:
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM project_concepts
+            WHERE concept_id = ?;
+        """, (concept_id,))
+
+        changed_rows = cur.rowcount
+    finally:
+        cur.close()
+
+    return changed_rows
+
+
+
 def create_predicate(con: sqlite3.Connection, predicate: Predicate) -> Predicate:
     cur = con.cursor()
 
@@ -133,7 +167,34 @@ def get_predicate_by_id(con: sqlite3.Connection, predicate_id: int) -> Predicate
     cur = con.cursor()
 
     try:
-        table_predicate = cur.execute("SELECT * FROM predicates WHERE id = ?;", (predicate_id,)).fetchone()
+        table_predicate = cur.execute("""
+            SELECT * FROM predicates
+            WHERE id = ?;
+            """, (predicate_id,)).fetchone()
+    finally:
+        cur.close()
+
+    if table_predicate is None:
+        return None
+
+    return Predicate(table_predicate[0], table_predicate[1], bool(table_predicate[2]))
+
+
+
+def get_predicate_by_name(con:sqlite3.Connection, predicate_name: str | None = None) -> Predicate | None:
+    cur = con.cursor()
+
+    try:
+        if predicate_name is None:
+            table_predicate = cur.execute("""
+                SELECT * FROM predicates
+                WHERE name IS NULL;
+            """).fetchone()
+        else:    
+            table_predicate = cur.execute("""
+                SELECT * FROM predicates
+                WHERE name = ?;
+            """, (predicate_name,)).fetchone()
     finally:
         cur.close()
 
@@ -199,6 +260,23 @@ def get_all_predicates(con: sqlite3.Connection) -> list[Predicate]:
         predicates.append(Predicate(res[i][0], res[i][1], bool(res[i][2])))
 
     return predicates
+
+
+
+def delete_relationships_for_predicate(con: sqlite3.Connection, predicate_id: int) -> int:
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM relationships
+            WHERE predicate_id = ?;
+        """, (predicate_id,))
+
+        changed_rows = cur.rowcount
+    finally:
+        cur.close()
+
+    return changed_rows
 
 
 
@@ -311,7 +389,10 @@ def get_project_by_id(con: sqlite3.Connection, project_id: int) -> Project | Non
     cur = con.cursor()
 
     try:
-        table_project = cur.execute("SELECT * FROM projects WHERE id = ?;", (project_id,)).fetchone()
+        table_project = cur.execute("""
+            SELECT * FROM projects
+            WHERE id = ?;
+        """, (project_id,)).fetchone()
     finally:
         cur.close()
 
@@ -377,6 +458,26 @@ def get_all_projects(con: sqlite3.Connection) -> list[Project]:
         projects.append(Project(res[i][1], res[i][0], res[i][2]))
 
     return projects
+
+
+
+def search_projects_by_title(con: sqlite3.Connection, title: str) -> list[Project]:
+    cur = con.cursor()
+
+    try:
+        projects = cur.execute("""
+            SELECT * FROM projects
+            WHERE title LIKE ?;
+        """, (f'%{title}%',)).fetchall()
+    finally:
+        cur.close()
+
+    res = []
+
+    for row in projects:
+        res.append(Project(row[1], row[0], row[2]))
+
+    return res
 
 
 
@@ -483,37 +584,3 @@ def get_all_project_concepts(con: sqlite3.Connection) -> list[ProjectConcept]:
         )
 
     return project_concepts
-
-
-
-def delete_relationships_for_concept(con: sqlite3.Connection, concept_id: int) -> int: 
-    cur = con.cursor()
-
-    try:
-        cur.execute("""
-            DELETE FROM relationships
-            WHERE subject_id = ? OR object_id = ?;
-        """, (concept_id, concept_id))
-
-        changed_rows = cur.rowcount
-    finally:
-        cur.close()
-
-    return changed_rows
-
-
-
-def delete_project_concepts_for_concept(con: sqlite3.Connection, concept_id: int) -> int:
-    cur = con.cursor()
-
-    try:
-        cur.execute("""
-            DELETE FROM project_concepts
-            WHERE concept_id = ?;
-        """, (concept_id,))
-
-        changed_rows = cur.rowcount
-    finally:
-        cur.close()
-
-    return changed_rows

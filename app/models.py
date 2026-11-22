@@ -1,24 +1,39 @@
 from dataclasses import dataclass
+from typing import TypedDict
 
-def _validate_required_string(value: str) -> None:
+def _validate_and_normalize_required_string(value: str) -> str:
     if not isinstance(value, str):
         raise TypeError("A required string must be a string")
 
-    if not value.strip():
+    stripped = value.strip()
+
+    if not stripped:
         raise ValueError("A required string must contain non-whitespace text")
 
-def _validate_optional_string(value: str | None) -> None:
+    return stripped
+
+
+
+def _validate_and_normalize_optional_string(value: str | None) -> str | None:
     if value is None:
-        return
+        return None
 
     if not isinstance(value, str):
         raise TypeError("An optional string must be a string or None")
+
+    stripped = value.strip()
+
+    return None if not stripped else stripped
+
+
 
 def _validate_required_id(id: int | None) -> None:
     if id is None:
         raise ValueError("This is a required id")
 
     _validate_id(id)
+
+
 
 def _validate_id(id: int | None) -> None:
     if id is None:
@@ -39,9 +54,9 @@ class Concept:
     content: str | None = None
 
     def __post_init__(self):
-        _validate_required_string(self.title)
+        self.title = _validate_and_normalize_required_string(self.title)
         _validate_id(self.id)
-        _validate_optional_string(self.content)
+        self.content = _validate_and_normalize_optional_string(self.content)
 
 
 
@@ -61,7 +76,7 @@ class Predicate:
                 raise ValueError("The generic predicate must be bidirectional")
             return
 
-        _validate_required_string(self.name)
+        self.name = _validate_and_normalize_required_string(self.name)
 
 
 
@@ -87,9 +102,9 @@ class Project:
     description: str | None = None
 
     def __post_init__(self):
-        _validate_required_string(self.title)
+        self.title = _validate_and_normalize_required_string(self.title)
         _validate_id(self.id)
-        _validate_optional_string(self.description)
+        self.description = _validate_and_normalize_optional_string(self.description)
 
 
 
@@ -103,3 +118,12 @@ class ProjectConcept:
         _validate_id(self.id)
         _validate_required_id(self.concept_id)
         _validate_required_id(self.project_id)
+
+
+
+class GraphResult(TypedDict):
+    concepts: list[Concept]
+    predicates: list[Predicate]
+    relationships: list[Relationship]
+    projects: list[Project]
+    project_concepts: list[ProjectConcept]
