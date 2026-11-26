@@ -441,6 +441,23 @@ def delete_project(con: sqlite3.Connection, project_id: int) -> bool:
 
 
 
+def delete_project_concepts_for_project(con: sqlite3.Connection, project_id: int) -> int:
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            DELETE FROM project_concepts
+            WHERE project_id = ?;
+        """, (project_id,))
+
+        changed_rows = cur.rowcount
+    finally:
+        cur.close()
+
+    return changed_rows
+
+
+
 def get_all_projects(con: sqlite3.Connection) -> list[Project]:
     cur = con.cursor()
 

@@ -20,6 +20,7 @@ from app.repositories import (
     get_all_relationships,
     get_project_by_id,
     delete_project as repositories_delete_project,
+    delete_project_concepts_for_project,
     get_all_projects,
     create_project_concept as repositories_create_project_concept,
     get_project_concept_by_id,
@@ -45,6 +46,7 @@ def delete_concept(con: sqlite3.Connection, concept_id: int) -> bool:
         if not concept_deleted:
             raise RuntimeError("An error happened and the concept did not get deleted")
 
+        # Do not forget to release the save point!
         con.execute("RELEASE SAVEPOINT delete_concept")
 
         return concept_deleted
@@ -246,7 +248,23 @@ def delete_project(con: sqlite3.Connection, project_id: int) -> bool:
     if table_project is None:
         raise NotFoundError("The project does not exist")
 
-    return repositories_delete_project(con, project_id)
+    con.execute("SAVEPOINT delete_project")
+
+    try:
+        delete_project_concepts_for_project(con, project_id)
+
+        project_deleted = repositories_delete_project(con, project_id)
+
+        if not project_deleted:
+            raise RuntimeError("An error happened and the project did not get deleted")
+
+        con.execute("RELEASE SAVEPOINT delete_project")
+        
+        return project_deleted
+    except Exception:
+        con.execute("ROLLBACK TO SAVEPOINT delete_project")
+        con.execute("RELEASE SAVEPOINT delete_project")
+        raise
 
 
 

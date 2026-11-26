@@ -24,6 +24,7 @@ from app.repositories import (
     get_project_by_id,
     update_project,
     delete_project,
+    delete_project_concepts_for_project,
     get_all_projects,
     search_projects_by_title,
     create_project_concept,
@@ -572,6 +573,13 @@ def test_delete_project(con, project1):
 
 def test_delete_nonexistent_project(con):
     assert not delete_project(con, 1)
+
+
+
+def test_delete_project_concepts_for_project(con, project_concept1, project_concept2, project_concept3):
+    assert delete_project_concepts_for_project(con, project_concept1.project_id) == 2
+    assert delete_project_concepts_for_project(con, project_concept2.project_id) == 1
+    assert delete_project_concepts_for_project(con, 999) == 0
 
 
 

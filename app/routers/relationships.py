@@ -54,6 +54,9 @@ def create_relationship_endpoint(
     except DuplicateError as exception:
         con.rollback()
         raise HTTPException(409, detail=str(exception))
+    except NotFoundError as exception:
+        con.rollback()
+        raise HTTPException(404, detail=str(exception))
     except Exception:
         con.rollback()
         raise

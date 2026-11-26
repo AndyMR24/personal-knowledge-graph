@@ -1,66 +1,48 @@
 # Personal Knowledge Graph
 
-A local web application for organizing technical learning notes as a knowledge graph. It is designed to help connect concepts across programming, SQL, data science, machine learning, and personal projects.
+A local, single-user web application for organizing technical concepts, notes, relationships, and projects as an interactive knowledge graph.
+
+For interface instructions and daily workflows, see [USER_MANUAL.md](USER_MANUAL.md).
 
 ## Features
 
-- **Concepts:** Create, view, update, search, and delete concepts. Each concept has a title and optional Markdown content.
-- **Predicates:** Define reusable predicates to describe relationships between concepts. Predicates can be directional or bidirectional.
-- **Relationships:** Connect concepts using subject–predicate–object relationships.
-- **Projects:** Organize related concepts into projects.
-- **Project membership:** Associate concepts with projects through a many-to-many relationship.
-- **Graph retrieval:** Retrieve the full graph or the neighborhood around a specific concept.
-- **Input validation:** Validate data before it reaches the database.
-- **Data integrity:** Use SQLite constraints, foreign keys, duplicate checks, and transactions to protect data consistency.
+- Interactive Cytoscape.js graph with concept and project nodes
+- Search, pan, zoom, recentering, and project visibility controls
+- CRUD workflows for concepts, projects, predicates, and relationships
+- Project membership management from the graph interface
+- Markdown rendering for concept notes and project descriptions
+- Contextual detail panels with editing and deletion controls
+- Inline predicate creation while creating a relationship
+- Safe rendering with raw HTML treated as text and URL-scheme filtering
+- Validation, duplicate detection, confirmations, loading states, and error feedback
 
-The application is intended for local, single-user use. The initial focus is creating and managing a knowledge graph through an API, with graph visualization planned for the frontend.
+The application currently requires internet access for the pinned Cytoscape.js CDN asset.
 
 ## Technology Stack
 
-- **Python** — application logic and data models
-- **FastAPI** — REST API
-- **SQLite** — persistent storage using Python's built-in `sqlite3` module
-- **Pydantic** — API request validation
-- **pytest** — automated testing
-- **HTML, CSS, JavaScript, and Cytoscape.js** — planned frontend and graph visualization
+- **Python**
+- **FastAPI**
+- **SQLite** using Python's built-in `sqlite3`
+- **Pydantic**
+- **pytest**
+- **Vanilla HTML, CSS, and JavaScript**
+- **Cytoscape.js** loaded from jsDelivr
 
 ## Data Model
 
-The application uses five database tables.
-
 | Table | Purpose |
 |---|---|
-| `concepts` | Stores concept titles and optional Markdown content |
-| `predicates` | Stores reusable relationship types and their directionality |
-| `relationships` | Connects a subject concept to an object concept through a predicate |
-| `projects` | Stores projects with a title and optional description |
-| `project_concepts` | Associates concepts with projects |
+| `concepts` | Concept titles and optional Markdown content |
+| `predicates` | Reusable relationship types and directionality |
+| `relationships` | Subject–predicate–object connections between concepts |
+| `projects` | Project titles and optional Markdown descriptions |
+| `project_concepts` | Many-to-many concept membership in projects |
 
-### Concepts and relationships
+A relationship has the shape `subject → predicate → object`. Bidirectional predicates apply in both directions without a second stored row. An unnamed predicate is supported only in bidirectional form, and the database allows at most one unnamed predicate.
 
-A relationship follows the structure:
-
-`Subject concept → Predicate → Object concept`
-
-For example:
-
-`Python → used_for → Data Analysis`
-
-Relationships reference existing concepts and predicates through foreign keys.
-
-### Predicate directionality
-
-Predicates have a `bidirectional` property. A bidirectional predicate can be interpreted in both directions without storing a second, reverse relationship row.
-
-The application also supports a generic predicate without a name. This predicate must be bidirectional, and the database restricts the generic predicate to a single entry.
-
-### Projects
-
-Projects group concepts without requiring a separate copy of each concept. The `project_concepts` table implements the many-to-many association and prevents duplicate memberships for the same project–concept pair.
+Project deletion removes the project's membership rows before deleting the project. The operation uses a SQLite savepoint so a failure after membership removal restores the project and memberships.
 
 ## Project Structure
-
-The main application modules are organized by responsibility:
 
 ```text
 app/
@@ -72,12 +54,25 @@ app/
 ├── repositories.py
 ├── services.py
 ├── exceptions.py
-└── routers/
-    ├── concepts.py
-    ├── predicates.py
-    ├── relationships.py
-    ├── projects.py
-    └── graph.py
+├── routers/
+│   ├── concepts.py
+│   ├── predicates.py
+│   ├── relationships.py
+│   ├── projects.py
+│   ├── project_concepts.py
+│   └── graph.py
+├── templates/
+│   └── index.html
+└── static/
+    ├── css/style.css
+    └── js/
+        ├── api.js
+        ├── crud.js
+        ├── graph-view.js
+        ├── main.js
+        ├── markdown.js
+        ├── palette.js
+        └── ui.js
 
 data/
 └── my_database.db
@@ -85,35 +80,26 @@ data/
 tests/
 ```
 
-The exact contents of the `tests/` directory may vary as the project develops.
+The frontend has no build step. FastAPI serves the template and static assets directly.
 
-- `main.py` configures the FastAPI application and initializes the database during application startup.
-- `database.py` manages database configuration, connections, and schema initialization.
-- `dependencies.py` provides database connections to API endpoints.
-- `models.py` defines validated Python dataclasses representing the application's domain entities.
-- `schemas.py` defines Pydantic schemas for API request validation.
-- `repositories.py` contains database operations.
-- `services.py` implements application-level business logic and graph retrieval.
-- `exceptions.py` defines domain exceptions used by the application.
-- `routers/` contains the API endpoints grouped by resource.
+### Frontend responsibilities
 
-## Getting Started
+- `main.js` owns application state, detail-panel content, search, graph refresh, and header personalization.
+- `graph-view.js` maps API graph data into Cytoscape elements and handles node, edge, project, and layout behavior.
+- `crud.js` contains the forms and mutation workflows built on the existing API.
+- `api.js` centralizes request handling and API error normalization.
+- `markdown.js` renders Markdown through DOM nodes without executing stored HTML.
+- `ui.js` provides dialogs, conditional forms, confirmations, custom listboxes, and notifications.
+- `palette.js` assigns stable color tones to graph entities.
+
+## Setup
 
 ### Requirements
 
-- Python 3.14 or a compatible Python version
+- Python 3.14 or a compatible version
 - `pip`
 
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd <repository-directory>
-```
-
-Replace the placeholders with your repository URL and local directory name.
-
-### 2. Create and activate a virtual environment
+### Create a virtual environment
 
 On Windows:
 
@@ -129,110 +115,84 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
-
-Install the project's dependencies using its dependency file, if one is present:
+### Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Start the application
+### Run the application
 
 ```bash
 python -m uvicorn app.main:app --reload
 ```
 
-FastAPI initializes the database when the application starts. The default database is stored at `data/my_database.db` relative to the project root.
+The application is available at:
 
-Once the server is running, visit:
-
+- **Web application:** `http://127.0.0.1:8000/`
 - **API documentation:** `http://127.0.0.1:8000/docs`
 - **Alternative API documentation:** `http://127.0.0.1:8000/redoc`
 - **Health check:** `http://127.0.0.1:8000/health`
 
+The default SQLite database is `data/my_database.db`.
+
 ## API Overview
 
-The API provides CRUD operations for concepts, predicates, relationships, and projects, as well as operations for managing project memberships.
-
-| Resource | Base path | Capabilities |
+| Resource | Base path | Operations |
 |---|---|---|
-| Concepts | `/concepts` | List/search, create, retrieve, update, delete |
-| Predicates | `/predicates` | List, create, retrieve, update, delete |
-| Relationships | `/relationships` | List, create, retrieve, update, delete |
-| Projects | `/projects` | List/search by title, create, retrieve, update, delete |
-| Project memberships | `/projects/{project_id}/concepts` | Add or remove a concept from a project |
-| Full graph | `/graph/` | Retrieve graph data for the application |
-| Concept neighborhood | `/concepts/{concept_id}/neighborhood` | Retrieve the neighborhood of a concept |
+| Concepts | `/concepts/` | list/search, create, retrieve, update, delete |
+| Predicates | `/predicates/` | list, create, retrieve, update, delete |
+| Relationships | `/relationships/` | list, create, retrieve, update, delete |
+| Projects | `/projects/` | list/search, create, retrieve, update, delete |
+| Project memberships | `/project_concepts/` | list, create, retrieve, delete |
+| Full graph | `/graph/` | retrieve all graph collections |
+| Concept neighborhood | `/concepts/{concept_id}/neighborhood` | retrieve a concept's direct graph context |
 
-For exact request schemas and response formats, use the interactive API documentation at `/docs`.
+Graph responses contain `concepts`, `predicates`, `relationships`, `projects`, and `project_concepts`.
 
-### Graph endpoints
+API behavior:
 
-The graph endpoints return five collections:
+- `201` for successful creation
+- `204` for successful deletion
+- `404` for missing resources
+- `409` for duplicates or conflicts
+- `422` for invalid request data
 
-- `concepts`
-- `relationships`
-- `predicates`
-- `projects`
-- `project_concepts`
+## Validation and Transaction Behavior
 
-The full graph endpoint returns the graph data across all five collections.
+Pydantic schemas validate API input, domain dataclasses validate application values, services enforce business rules, and repositories perform SQL operations.
 
-The concept neighborhood endpoint returns the selected concept and its direct neighbors, the relevant relationships and predicates, and projects directly associated with the selected concept. It does not expand project memberships to include projects associated only with neighboring concepts.
+- SQLite foreign keys are enabled for every connection.
+- Repositories do not commit transactions.
+- Endpoint handlers commit successful writes and roll back failures.
+- Concept and predicate deletion remove dependent relationships.
+- Concept deletion removes project memberships.
+- Project deletion removes its memberships inside a rollback-capable savepoint.
 
-These responses provide the data needed for graph visualization while leaving frontend presentation choices independent of the API.
+## Testing
 
-### API behavior
-
-- Successful creation requests return HTTP `201`.
-- Successful deletion requests return HTTP `204`.
-- Missing resources return HTTP `404`.
-- Duplicate or conflicting operations return HTTP `409`.
-- Invalid request data is rejected with HTTP `422`.
-- Collection requests return an empty list when there are no matching results.
-
-Write endpoints commit successful transactions and roll back failed operations.
-
-## Data Validation and Integrity
-
-The application separates API request validation, domain models, business logic, and database operations.
-
-- Pydantic schemas validate incoming API data.
-- Domain dataclasses validate values independently of FastAPI and SQLite.
-- Services handle application-level rules such as existence checks and duplicate prevention.
-- Repositories perform database operations using an explicitly supplied connection.
-- SQLite foreign keys and constraints enforce referential integrity and uniqueness.
-
-Database connections enable foreign-key enforcement. The repository layer does not commit transactions; transaction control is handled by the endpoint layer.
-
-## Running Tests
-
-Run the automated test suite from the project root:
+Run the complete test suite:
 
 ```bash
 python -m pytest
 ```
 
-To see more detailed test output:
+Run with expanded output:
 
 ```bash
 python -m pytest -v
 ```
 
+The tests use in-memory or temporary databases and do not seed the personal database.
+
 ## Current Scope and Future Work
 
-The current milestone establishes the data model, persistence layer, domain validation, business logic, CRUD API, project memberships, and graph retrieval endpoints.
+The implemented scope includes the CRUD API, graph persistence, web interface, interactive graph exploration, safe Markdown rendering, and the main knowledge-management workflows.
 
-Potential future improvements include:
+Potential future work:
 
-- Building the web frontend.
-- Visualizing the graph with Cytoscape.js.
-- Adding controls to explore neighborhoods and toggle project nodes.
-- Supporting import and export of existing Markdown or plain-text notes.
-- Implementing reliable database backup and restore workflows.
-- Expanding project-based exploration and filtering.
-
-## Known TODOs
-
-- Decide how `ProjectUpdate` should handle an explicitly supplied `null` title. The intended behavior needs to be defined and tested before considering this edge case fully resolved.
+- Bundle Cytoscape.js locally for offline use
+- Import and export Markdown notes
+- Database backup and restore workflows
+- More advanced graph filtering and layout options
+- Automated browser test coverage

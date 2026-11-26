@@ -9,6 +9,7 @@ from app.repositories import (
     create_relationship,
     get_relationship_by_id,
     create_project,
+    get_project_by_id,
     get_project_concept_by_id)
 from app.services import (
     delete_concept,
@@ -19,6 +20,7 @@ from app.services import (
     create_relationship,
     update_relationship,
     delete_relationship,
+    delete_project,
     create_project_concept,
     update_project_concept,
     delete_project_concept,
@@ -97,8 +99,16 @@ def project1(con):
     return create_project(con, Project("Thesis", description = "My Thesis"))
 
 @pytest.fixture
+def project2(con):
+    return create_project(con, Project("Knowledge Graph"))
+
+@pytest.fixture
 def project_concept1(con, concept1, project1):
     return create_project_concept(con, ProjectConcept(concept1.id, project1.id))
+
+@pytest.fixture
+def project_concept2(con, concept1, project2):
+    return create_project_concept(con, ProjectConcept(concept1.id, project2.id))
 
 
 
@@ -344,6 +354,53 @@ def test_delete_relationship(con, concept1, concept2, predicate1, relationship1)
 def test_delete_inexistent_relationship(con):
     with pytest.raises(NotFoundError):
         delete_relationship(con, 999)
+
+
+
+def test_delete_project(con, concept1, concept2, project1, project2, project_concept1, project_concept2):
+    assert delete_project(con, project1.id)
+    assert get_project_concept_by_id(con, project_concept1.id) is None
+    assert get_project_concept_by_id(con, project_concept2.id) is not None
+
+
+
+def test_delete_project_rollback_restores_project_and_memberships(
+    con,
+    concept1,
+    concept2,
+    project1,
+    project_concept1,
+    monkeypatch,
+):
+    project_concept2 = create_project_concept(
+        con,
+        ProjectConcept(concept2.id, project1.id),
+    )
+
+    def failing_delete_project(con, project_id):
+        assert get_project_by_id(con, project_id) == project1
+        assert con.execute(
+            "SELECT COUNT(*) FROM project_concepts WHERE project_id = ?;",
+            (project_id,),
+        ).fetchone() == (0,)
+        raise RuntimeError("Simulated project deletion failure")
+
+    monkeypatch.setattr(
+        app.services,
+        "repositories_delete_project",
+        failing_delete_project,
+    )
+
+    with pytest.raises(RuntimeError, match="Simulated project deletion failure"):
+        delete_project(con, project1.id)
+
+    assert get_project_by_id(con, project1.id) == project1
+    assert get_project_concept_by_id(con, project_concept1.id) == project_concept1
+    assert get_project_concept_by_id(con, project_concept2.id) == project_concept2
+    assert con.execute(
+        "SELECT COUNT(*) FROM project_concepts WHERE project_id = ?;",
+        (project1.id,),
+    ).fetchone() == (2,)
 
 
 
